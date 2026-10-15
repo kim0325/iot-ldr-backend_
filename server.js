@@ -12,7 +12,7 @@ app.use(express.json());
 // Servir la interfaz web estática desde la carpeta /public
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 1. Inicializar la base de datos SQL
+// Inicializar la base de datos SQL
 const db = new sqlite3.Database('./monitoreo.db', (err) => {
     if (err) {
         console.error('Error al conectar con SQLite:', err.message);
@@ -21,7 +21,7 @@ const db = new sqlite3.Database('./monitoreo.db', (err) => {
     }
 });
 
-// 2. Crear tabla de almacenamiento si no existe
+// Crear tabla de almacenamiento
 db.run(`
     CREATE TABLE IF NOT EXISTS lecturas_luz (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +32,34 @@ db.run(`
     )
 `);
 
-// 3. Endpoint POST: Recibe datos del ESP32
+// Función para obtener la fecha y hora local formateada (YYYY-MM-DD HH:MM:SS)
+function obtenerFechaHoraLocal() {
+    const opciones = {
+        timeZone: 'America/Mexico_City',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    };
+    const formateador = new Intl.DateTimeFormat('es-MX', opciones);
+    const partes = formateador.formatToParts(new Date());
+    
+    let YYYY, MM, DD, hh, mm, ss;
+    for (const parte of partes) {
+        if (parte.type === 'year') YYYY = parte.value;
+        if (parte.type === 'month') MM = parte.value;
+        if (parte.type === 'day') DD = parte.value;
+        if (parte.type === 'hour') hh = parte.value;
+        if (parte.type === 'minute') mm = parte.value;
+        if (parte.type === 'second') ss = parte.value;
+    }
+    return `${YYYY}-${MM}-${DD} ${hh}:${mm}:${ss}`;
+}
+
+// Endpoint POST: Recibe datos del ESP32 y guarda la fecha en hora local
 app.post('/api/lecturas', (req, res) => {
     const { dispositivo, valor_adc, porcentaje_luz } = req.body;
 
@@ -40,8 +67,9 @@ app.post('/api/lecturas', (req, res) => {
         return res.status(400).json({ error: 'Faltan parámetros requeridos' });
     }
 
-    const query = `INSERT INTO lecturas_luz (dispositivo, valor_adc, porcentaje_luz) VALUES (?, ?, ?)`;
-    const params = [dispositivo || 'ESP32_LDR', valor_adc, porcentaje_luz];
+    const fechaLocal = obtenerFechaHoraLocal();
+    const query = `INSERT INTO lecturas_luz (dispositivo, valor_adc, porcentaje_luz, fecha_registro) VALUES (?, ?, ?, ?)`;
+    const params = [dispositivo || 'ESP32_LDR', valor_adc, porcentaje_luz, fechaLocal];
 
     db.run(query, params, function (err) {
         if (err) {
@@ -49,7 +77,7 @@ app.post('/api/lecturas', (req, res) => {
             return res.status(500).json({ error: err.message });
         }
 
-        console.log(`[SQL GUARDADO] ID: ${this.lastID} | Luz: ${porcentaje_luz}% (ADC: ${valor_adc})`);
+        console.log(`[SQL GUARDADO] ID: ${this.lastID} | Luz: ${porcentaje_luz}% (ADC: ${valor_adc}) | Fecha: ${fechaLocal}`);
         res.status(201).json({
             mensaje: 'Lectura registrada correctamente',
             id_registro: this.lastID
@@ -57,7 +85,7 @@ app.post('/api/lecturas', (req, res) => {
     });
 });
 
-// 4. Endpoint GET: Consultar TODOS los registros almacenados (Sin límite)
+// Endpoint GET: Consultar registros en orden descendente
 app.get('/api/lecturas', (req, res) => {
     const query = `SELECT * FROM lecturas_luz ORDER BY id DESC`;
     db.all(query, [], (err, rows) => {
