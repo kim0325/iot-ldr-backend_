@@ -9,10 +9,10 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Servir la interfaz web desde la carpeta public
+// Servir la interfaz web estática desde la carpeta /public
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Inicializar la base de datos SQL
+// 1. Inicializar la base de datos SQL
 const db = new sqlite3.Database('./monitoreo.db', (err) => {
     if (err) {
         console.error('Error al conectar con SQLite:', err.message);
@@ -21,7 +21,7 @@ const db = new sqlite3.Database('./monitoreo.db', (err) => {
     }
 });
 
-// Crear tabla de almacenamiento
+// 2. Crear tabla de almacenamiento si no existe
 db.run(`
     CREATE TABLE IF NOT EXISTS lecturas_luz (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +32,7 @@ db.run(`
     )
 `);
 
-// Endpoint POST: Recibe datos del ESP32 desde cualquier lugar
+// 3. Endpoint POST: Recibe datos del ESP32
 app.post('/api/lecturas', (req, res) => {
     const { dispositivo, valor_adc, porcentaje_luz } = req.body;
 
@@ -57,9 +57,9 @@ app.post('/api/lecturas', (req, res) => {
     });
 });
 
-// Endpoint GET: Consulta de historial
+// 4. Endpoint GET: Consultar TODOS los registros almacenados (Sin límite)
 app.get('/api/lecturas', (req, res) => {
-    const query = `SELECT * FROM lecturas_luz ORDER BY id DESC LIMIT 100`;
+    const query = `SELECT * FROM lecturas_luz ORDER BY id DESC`;
     db.all(query, [], (err, rows) => {
         if (err) {
             return res.status(500).json({ error: err.message });
