@@ -5,8 +5,8 @@ const INTERVALO_MINUTOS = 5;
 const DIAS = 7;
 const TOTAL_LECTURAS = (DIAS * 24 * 60) / INTERVALO_MINUTOS; // 2,016 muestras
 
-// Fijar el momento ancla exactamente a las 07:36 AM del día de hoy
-const fechaAncla = new Date(2026, 9, 15, 7, 36, 0); // 15 de Octubre de 2026, 07:36:00 AM
+// Fijar la fecha ancla exactamente a las 07:44 AM de hoy (15 de Octubre de 2026)
+const fechaAncla = new Date(2026, 9, 15, 7, 44, 0);
 
 function formatearFechaLocal(date) {
     const pad = (n) => String(n).padStart(2, '0');
@@ -22,10 +22,10 @@ function formatearFechaLocal(date) {
 console.log(`Recreando tabla e inyectando ${TOTAL_LECTURAS} lecturas hasta el punto exacto: ${formatearFechaLocal(fechaAncla)}...`);
 
 db.serialize(() => {
-    // 1. ELIMINAR LA TABLA COMPLETA CON DATOS FALSOS / UTC ANTERIORES
+    // 1. Limpiar tabla previa
     db.run(`DROP TABLE IF EXISTS lecturas_luz`);
     
-    // 2. CREAR TABLA LIMPIA
+    // 2. Crear tabla desde cero
     db.run(`
         CREATE TABLE lecturas_luz (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,7 +56,7 @@ db.serialize(() => {
             porcentaje = unFoco + luzVentana + (Math.random() * 3 - 1.5);
         } 
         else if (horaDecimal >= 9 && horaDecimal < 18) {
-            // Día: Solo luz natural de la ventana
+            // Día: Solo luz natural por la ventana
             const cenit = Math.sin(((horaDecimal - 9) / 9) * Math.PI);
             const luzVentanaSol = 32 + (cenit * 24);
             porcentaje = luzVentanaSol + (Math.random() * 4 - 2);
@@ -78,7 +78,7 @@ db.serialize(() => {
     }
 
     stmt.finalize();
-    console.log('¡Base de datos limpiada y regenerada con éxito!');
+    console.log('¡Base de datos recreada e inyectada con exito hasta las 07:44 AM!');
 });
 
 db.close();
