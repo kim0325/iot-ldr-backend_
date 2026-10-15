@@ -6,7 +6,7 @@ const DIAS = 7;
 const TOTAL_LECTURAS = (DIAS * 24 * 60) / INTERVALO_MINUTOS; // 2,016 muestras
 
 // Fijar la fecha ancla exactamente a las 07:44 AM de hoy (15 de Octubre de 2026)
-const fechaAncla = new Date(2026, 9, 15, 8, 35, 0); // 15 de Octubre de 2026, 08:35:00 AM
+const fechaAncla = new Date(2026, 9, 15, 8, 49, 54); // 15 de Octubre de 2026, 08:35:00 AM
 
 function formatearFechaLocal(date) {
     const pad = (n) => String(n).padStart(2, '0');
