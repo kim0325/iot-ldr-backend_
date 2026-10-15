@@ -3,24 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitoreo IoT - Sensor de Luz LDR</title>
+    <title>Monitoreo IoT - Habitación</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #0f172a; color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .card-custom { background: #1e293b; border: 1px solid #334155; border-radius: 12px; }
         .table-custom { color: #f8fafc; }
         .table-custom thead { background-color: #334155; }
-        .badge-luz { font-size: 1.1rem; }
+        .page-link-custom { background-color: #334155; color: #38bdf8; border-color: #475569; cursor: pointer; }
+        .page-link-custom:hover { background-color: #475569; color: #38bdf8; }
+        .page-item.disabled .page-link-custom { background-color: #1e293b; color: #64748b; border-color: #334155; cursor: not-allowed; }
     </style>
 </head>
 <body class="py-4">
     <div class="container">
         <header class="pb-3 mb-4 border-bottom border-secondary text-center">
             <h1 class="display-6 fw-bold text-info">Sistema de Monitoreo IoT en Tiempo Real</h1>
-            <p class="text-secondary mb-0">Lectura y persistencia de datos analógicos con ESP32 y SQLite</p>
+            <p class="text-secondary mb-0">Luminosidad de la habitación con ESP32 y SQLite</p>
         </header>
 
-        <!-- Tarjetas de Última Muestra -->
+        <!-- Tarjetas de Información -->
         <div class="row g-4 mb-4">
             <div class="col-md-4">
                 <div class="card card-custom p-3 text-center">
@@ -42,11 +44,11 @@
             </div>
         </div>
 
-        <!-- Tabla Histórica -->
+        <!-- Tabla Histórica con Paginación -->
         <div class="card card-custom p-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="mb-0">Historial de Muestras Registradas</h5>
-                <span class="badge bg-primary" id="estado-muestreo">Actualizando cada 3s</span>
+                <h5 class="mb-0">Historial de Lecturas Registradas</h5>
+                <span class="badge bg-primary" id="info-registros">Cargando...</span>
             </div>
             <div class="table-responsive">
                 <table class="table table-custom table-hover align-middle mb-0">
@@ -64,48 +66,98 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Controles de Paginación -->
+            <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top border-secondary">
+                <div class="small text-secondary">
+                    Página <span id="pagina-actual" class="fw-bold text-light">1</span> de <span id="total-paginas" class="fw-bold text-light">1</span>
+                </div>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item" id="btn-prev-item">
+                            <button class="page-link page-link-custom" id="btn-prev" onclick="cambiarPagina(-1)">Anterior</button>
+                        </li>
+                        <li class="page-item" id="btn-next-item">
+                            <button class="page-link page-link-custom" id="btn-next" onclick="cambiarPagina(1)">Siguiente</button>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
         </div>
     </div>
 
     <script>
+        let todasLasLecturas = [];
+        let paginaActual = 1;
+        const registrosPorPagina = 15;
+
         async function cargarLecturas() {
             try {
                 const res = await fetch('/api/lecturas');
-                const datos = await res.json();
+                todasLasLecturas = await res.json();
 
-                if (!datos || datos.length === 0) return;
+                if (!todasLasLecturas || todasLasLecturas.length === 0) return;
 
-                // Actualizar tarjeta superior con la muestra más reciente
-                const ultima = datos[0];
+                // Actualizar tarjeta principal con el último registro registrado
+                const ultima = todasLasLecturas[0];
                 document.getElementById('dispositivo-val').textContent = ultima.dispositivo;
                 document.getElementById('luz-val').textContent = `${ultima.porcentaje_luz}%`;
                 document.getElementById('adc-val').textContent = ultima.valor_adc;
 
-                // Generar filas de la tabla
-                const tbody = document.getElementById('tabla-cuerpo');
-                tbody.innerHTML = datos.slice(0, 15).map(fila => `
-                    <tr>
-                        <td><strong>${fila.id}</strong></td>
-                        <td>${fila.dispositivo}</td>
-                        <td><code>${fila.valor_adc}</code></td>
-                        <td>
-                            <div class="progress" style="height: 18px; width: 140px; background-color: #334155;">
-                                <div class="progress-bar bg-info" role="progressbar" style="width: ${fila.porcentaje_luz}%">
-                                    ${fila.porcentaje_luz}%
-                                </div>
-                            </div>
-                        </td>
-                        <td class="text-secondary small">${fila.fecha_registro}</td>
-                    </tr>
-                `).join('');
+                renderizarTabla();
             } catch (err) {
-                console.error("Error al obtener datos:", err);
+                console.error("Error al consultar datos:", err);
             }
         }
 
-        // Consultar cada 3 segundos para sincronizar con el muestreo
+        function renderizarTabla() {
+            const totalPaginas = Math.ceil(todasLasLecturas.length / registrosPorPagina) || 1;
+            if (paginaActual > totalPaginas) paginaActual = totalPaginas;
+
+            const inicio = (paginaActual - 1) * registrosPorPagina;
+            const fin = inicio + registrosPorPagina;
+            const paginaDatos = todasLasLecturas.slice(inicio, fin);
+
+            const tbody = document.getElementById('tabla-cuerpo');
+            tbody.innerHTML = paginaDatos.map(fila => `
+                <tr>
+                    <td><strong>${fila.id}</strong></td>
+                    <td>${fila.dispositivo}</td>
+                    <td><code>${fila.valor_adc}</code></td>
+                    <td>
+                        <div class="progress" style="height: 18px; width: 140px; background-color: #334155;">
+                            <div class="progress-bar bg-info" role="progressbar" style="width: ${fila.porcentaje_luz}%">
+                                ${fila.porcentaje_luz}%
+                            </div>
+                        </div>
+                    </td>
+                    <td class="text-secondary small">${fila.fecha_registro}</td>
+                </tr>
+            `).join('');
+
+            // Actualizar controles de paginación
+            document.getElementById('pagina-actual').textContent = paginaActual;
+            document.getElementById('total-paginas').textContent = totalPaginas;
+            document.getElementById('info-registros').textContent = `Total: ${todasLasLecturas.length} registros`;
+
+            // Habilitar / Deshabilitar botones
+            document.getElementById('btn-prev-item').classList.toggle('disabled', paginaActual === 1);
+            document.getElementById('btn-next-item').classList.toggle('disabled', paginaActual === totalPaginas);
+        }
+
+        function cambiarPagina(direccion) {
+            const totalPaginas = Math.ceil(todasLasLecturas.length / registrosPorPagina) || 1;
+            const nuevaPagina = paginaActual + direccion;
+
+            if (nuevaPagina >= 1 && nuevaPagina <= totalPaginas) {
+                paginaActual = nuevaPagina;
+                renderizarTabla();
+            }
+        }
+
+        // Cargar datos al iniciar y actualizar cada 10s (para no romper la navegación por páginas)
         cargarLecturas();
-        setInterval(cargarLecturas, 3000);
+        setInterval(cargarLecturas, 10000);
     </script>
 </body>
 </html>
